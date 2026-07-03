@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#12181B" />
+<title>Ledger — Expense Tracker</title>
+<link rel="manifest" href="manifest.json" />
+<link rel="icon" href="icons/icon-192.png" />
+<link rel="apple-touch-icon" href="icons/icon-192.png" />
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<div class="app">
+
+  <div class="header">
+    <div class="eyebrow">🧾 Ledger</div>
+    <h1 class="font-display" id="todayTotal">0.00</h1>
+    <div class="date" id="todayDate"></div>
+    <button class="sync-status" id="syncStatus">
+      <span class="dot"></span>
+      <span class="label-text">Connect Google Drive</span>
+    </button>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="label">📅 This week</div>
+      <div class="value font-display" id="weekTotal">0.00</div>
+      <div class="delta font-mono" id="weekDelta"></div>
+    </div>
+    <div class="card">
+      <div class="label">🗓️ This month</div>
+      <div class="value font-display" id="monthTotal">0.00</div>
+      <div class="delta font-mono" id="monthDelta"></div>
+    </div>
+  </div>
+
+  <div class="card chart-card">
+    <div class="label" id="chartLabel">Last 7 days</div>
+    <canvas id="chart"></canvas>
+  </div>
+
+  <div class="chips" id="chips"></div>
+
+  <div class="tabs">
+    <button class="tab active" data-view="day">Day</button>
+    <button class="tab" data-view="week">Week</button>
+    <button class="tab" data-view="month">Month</button>
+  </div>
+
+  <div class="receipt" id="receiptList"></div>
+
+</div>
+
+<button class="fab" id="addBtn" aria-label="Add expense">+</button>
+
+<div class="sheet-backdrop hidden" id="sheetBackdrop">
+  <div class="sheet">
+    <div class="sheet-header">
+      <h2 class="font-display">Log expense</h2>
+      <button id="closeSheet" aria-label="Close">✕</button>
+    </div>
+
+    <label class="field-label">Amount</label>
+    <input class="field mono" type="number" inputmode="decimal" id="amountInput" placeholder="0.00" />
+
+    <label class="field-label">Category</label>
+    <div class="cat-picker" id="catPicker"></div>
+
+    <label class="field-label">Note (optional)</label>
+    <input class="field" type="text" id="noteInput" placeholder="e.g. Groceries" />
+
+    <label class="field-label">Date</label>
+    <input class="field mono" type="date" id="dateInput" />
+
+    <div class="error-text" id="formError"></div>
+
+    <button class="btn-primary" id="saveEntry">Add entry</button>
+  </div>
+</div>
+
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="app.js"></script>
+</body>
+</html>
