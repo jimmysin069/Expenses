@@ -4,7 +4,7 @@
 //    "Authorized JavaScript origins".
 // 3. Paste the client ID below.
 const CONFIG = {
-  GOOGLE_CLIENT_ID: "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com",
+  GOOGLE_CLIENT_ID: "129381559770-56u047to9s99j59gavs2oti1ifd1vuoi.apps.googleusercontent.com",
   DRIVE_SCOPE: "https://www.googleapis.com/auth/drive.appdata",
   DRIVE_FILENAME: "ledger-data.json"
 };
