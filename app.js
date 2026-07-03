@@ -4,12 +4,12 @@
 //    "Authorized JavaScript origins".
 // 3. Paste the client ID below.
 const CONFIG = {
-  GOOGLE_CLIENT_ID: "129381559770-56u047to9s99j59gavs2oti1ifd1vuoi.apps.googleusercontent.com",
+  GOOGLE_CLIENT_ID: "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com",
   DRIVE_SCOPE: "https://www.googleapis.com/auth/drive.appdata",
   DRIVE_FILENAME: "ledger-data.json"
 };
 
-const CATEGORIES = [
+const EXPENSE_CATEGORIES = [
   { id: "food", label: "Food", color: "#C1533B" },
   { id: "transport", label: "Transport", color: "#4FA88B" },
   { id: "bills", label: "Bills", color: "#D9A441" },
@@ -17,11 +17,22 @@ const CATEGORIES = [
   { id: "health", label: "Health", color: "#B06BC9" },
   { id: "other", label: "Other", color: "#8A8F92" }
 ];
-const catMeta = (id) => CATEGORIES.find((c) => c.id === id) || CATEGORIES[5];
+const INCOME_CATEGORIES = [
+  { id: "tips", label: "Tips", color: "#4FA88B" },
+  { id: "salary", label: "Salary", color: "#7C8FC9" },
+  { id: "bonus", label: "Bonus", color: "#D9A441" },
+  { id: "other_income", label: "Other", color: "#8A8F92" }
+];
+const catMeta = (id) =>
+  [...EXPENSE_CATEGORIES, ...INCOME_CATEGORIES].find((c) => c.id === id) || EXPENSE_CATEGORIES[5];
 
 // ---- State --------------------------------------------------------------
+// entries: { id, amount, type: 'expense'|'income', category, note, date }
 let entries = JSON.parse(localStorage.getItem("ledger:entries") || "[]");
+// migrate legacy entries (no type field) to expenses
+entries = entries.map((e) => (e.type ? e : { ...e, type: "expense" }));
 let view = "day";
+let selectedType = "expense";
 let selectedCategory = "food";
 let tokenClient = null;
 let accessToken = null;
@@ -149,14 +160,20 @@ function setSyncStatus(state) {
 }
 
 // ---- Derived data ----------------------------------------------------------
+function sumByType(list) {
+  const income = list.filter((e) => e.type === "income").reduce((s, e) => s + e.amount, 0);
+  const expense = list.filter((e) => e.type !== "income").reduce((s, e) => s + e.amount, 0);
+  return { income, expense, net: income - expense };
+}
+
 function last7Days() {
   const days = [];
   for (let i = 6; i >= 0; i--) {
     const d = new Date();
     d.setDate(d.getDate() - i);
     const iso = d.toISOString().slice(0, 10);
-    const total = entries.filter((e) => e.date === iso).reduce((s, e) => s + e.amount, 0);
-    days.push({ label: d.toLocaleDateString(undefined, { weekday: "short" }), iso, total });
+    const { income, expense, net } = sumByType(entries.filter((e) => e.date === iso));
+    days.push({ label: d.toLocaleDateString(undefined, { weekday: "short" }), iso, income, expense, net });
   }
   return days;
 }
@@ -166,29 +183,41 @@ function last6Months() {
   const now = new Date();
   for (let i = 5; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const total = entries
-      .filter((e) => {
-        const ed = new Date(e.date);
-        return ed.getFullYear() === d.getFullYear() && ed.getMonth() === d.getMonth();
-      })
-      .reduce((s, e) => s + e.amount, 0);
-    months.push({ label: d.toLocaleDateString(undefined, { month: "short" }), total });
+    const list = entries.filter((e) => {
+      const ed = new Date(e.date);
+      return ed.getFullYear() === d.getFullYear() && ed.getMonth() === d.getMonth();
+    });
+    const { income, expense, net } = sumByType(list);
+    months.push({ label: d.toLocaleDateString(undefined, { month: "short" }), income, expense, net });
   }
   return months;
 }
 
 function sumRange(startOffsetDays, endOffsetDays) {
-  let sum = 0;
+  const list = [];
   for (let i = startOffsetDays; i >= endOffsetDays; i--) {
     const d = new Date();
     d.setDate(d.getDate() - i);
     const iso = d.toISOString().slice(0, 10);
-    sum += entries.filter((e) => e.date === iso).reduce((s, e) => s + e.amount, 0);
+    entries.filter((e) => e.date === iso).forEach((e) => list.push(e));
   }
-  return sum;
+  return sumByType(list);
 }
 
 // ---- Chart (canvas, no deps) -----------------------------------------------
+function roundedBar(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x, y + h);
+  ctx.lineTo(x, y + r);
+  ctx.arcTo(x, y, x + r, y, r);
+  ctx.lineTo(x + w - r, y);
+  ctx.arcTo(x + w, y, x + w, y + r, r);
+  ctx.lineTo(x + w, y + h);
+  ctx.closePath();
+  ctx.fill();
+}
+
+// data: [{ label, income, expense }]  — grouped income (green) vs expense (red) bars per period
 function drawChart(data) {
   const canvas = document.getElementById("chart");
   const dpr = window.devicePixelRatio || 1;
@@ -200,31 +229,28 @@ function drawChart(data) {
   ctx.scale(dpr, dpr);
   ctx.clearRect(0, 0, w, h);
 
-  const max = Math.max(...data.map((d) => d.total), 1);
-  const barW = (w / data.length) * 0.5;
-  const gap = (w / data.length) * 0.5;
+  const max = Math.max(...data.map((d) => Math.max(d.income, d.expense)), 1);
+  const groupW = w / data.length;
+  const barW = groupW * 0.28;
+  const baseline = h - 22;
 
   ctx.font = "11px 'IBM Plex Mono', monospace";
-  ctx.fillStyle = "#8A8F92";
   ctx.textAlign = "center";
 
   data.forEach((d, i) => {
-    const x = i * (barW + gap) + gap / 2;
-    const barH = (d.total / max) * 95;
-    ctx.fillStyle = "#D9A441";
-    ctx.beginPath();
-    const r = 4;
-    const y = h - 22 - barH;
-    ctx.moveTo(x, h - 22);
-    ctx.lineTo(x, y + r);
-    ctx.arcTo(x, y, x + r, y, r);
-    ctx.lineTo(x + barW - r, y);
-    ctx.arcTo(x + barW, y, x + barW, y + r, r);
-    ctx.lineTo(x + barW, h - 22);
-    ctx.closePath();
-    ctx.fill();
+    const groupX = i * groupW;
+    const expH = (d.expense / max) * 95;
+    const incH = (d.income / max) * 95;
+    const expX = groupX + groupW / 2 - barW - 2;
+    const incX = groupX + groupW / 2 + 2;
+
+    ctx.fillStyle = "#C1533B";
+    roundedBar(ctx, expX, baseline - expH, barW, Math.max(expH, 1), 3);
+    ctx.fillStyle = "#4FA88B";
+    roundedBar(ctx, incX, baseline - incH, barW, Math.max(incH, 1), 3);
+
     ctx.fillStyle = "#8A8F92";
-    ctx.fillText(d.label, x + barW / 2, h - 6);
+    ctx.fillText(d.label, groupX + groupW / 2, h - 6);
   });
 }
 
@@ -243,8 +269,11 @@ function entriesForView() {
 }
 
 function render() {
-  const todayTotal = entries.filter((e) => e.date === todayISO()).reduce((s, e) => s + e.amount, 0);
-  document.getElementById("todayTotal").textContent = fmt(todayTotal);
+  const todaySums = sumByType(entries.filter((e) => e.date === todayISO()));
+  document.getElementById("todayTotal").textContent = (todaySums.net >= 0 ? "" : "-") + fmt(Math.abs(todaySums.net));
+  document.getElementById("todayTotal").style.color = todaySums.net < 0 ? "#C1533B" : "#E9E6DE";
+  document.getElementById("todaySub").textContent =
+    `+${fmt(todaySums.income)} income · -${fmt(todaySums.expense)} spent`;
   document.getElementById("todayDate").textContent = new Date().toLocaleDateString(undefined, {
     weekday: "long",
     month: "long",
@@ -252,16 +281,15 @@ function render() {
   });
 
   const weekData = last7Days();
-  const thisWeek = weekData.reduce((s, d) => s + d.total, 0);
-  const lastWeek = sumRange(13, 7);
-  document.getElementById("weekTotal").textContent = fmt(thisWeek);
-  setDelta("weekDelta", lastWeek === 0 ? null : ((thisWeek - lastWeek) / lastWeek) * 100, "vs last week");
+  const weekSums = weekData.reduce(
+    (a, d) => ({ income: a.income + d.income, expense: a.expense + d.expense, net: a.net + d.net }),
+    { income: 0, expense: 0, net: 0 }
+  );
+  fillCard("week", weekSums);
 
   const monthData = last6Months();
-  const thisMonth = monthData[monthData.length - 1].total;
-  const lastMonth = monthData[monthData.length - 2].total;
-  document.getElementById("monthTotal").textContent = fmt(thisMonth);
-  setDelta("monthDelta", lastMonth === 0 ? null : ((thisMonth - lastMonth) / lastMonth) * 100, "vs last month");
+  const monthSums = monthData[monthData.length - 1];
+  fillCard("month", monthSums);
 
   drawChart(view === "month" ? monthData : weekData);
   document.getElementById("chartLabel").textContent = view === "month" ? "Last 6 months" : "Last 7 days";
@@ -270,22 +298,24 @@ function render() {
   renderList();
 }
 
-function setDelta(id, pct, suffix) {
-  const el = document.getElementById(id);
-  if (pct === null) {
-    el.textContent = "";
-    return;
-  }
-  el.className = "delta " + (pct > 0 ? "up" : "down");
-  el.textContent = (pct > 0 ? "▲ " : "▼ ") + Math.abs(pct).toFixed(0) + "% " + suffix;
+function fillCard(prefix, sums) {
+  document.getElementById(prefix + "Income").textContent = "+" + fmt(sums.income);
+  document.getElementById(prefix + "Expense").textContent = "-" + fmt(sums.expense);
+  const netEl = document.getElementById(prefix + "Net");
+  netEl.textContent = (sums.net >= 0 ? "+" : "-") + fmt(Math.abs(sums.net));
+  netEl.className = "value font-display " + (sums.net >= 0 ? "positive" : "negative");
 }
 
 function renderChips() {
   const source = entriesForView();
   const map = {};
-  source.forEach((e) => (map[e.category] = (map[e.category] || 0) + e.amount));
+  source.forEach((e) => {
+    const key = e.category;
+    if (!map[key]) map[key] = { total: 0, type: e.type };
+    map[key].total += e.amount;
+  });
   const list = Object.entries(map)
-    .map(([id, total]) => ({ ...catMeta(id), total }))
+    .map(([id, v]) => ({ ...catMeta(id), ...v }))
     .sort((a, b) => b.total - a.total);
 
   const el = document.getElementById("chips");
@@ -293,7 +323,8 @@ function renderChips() {
   list.forEach((c) => {
     const chip = document.createElement("div");
     chip.className = "chip";
-    chip.innerHTML = `<span class="swatch" style="background:${c.color}"></span><span>${c.label}</span><span class="amt">${fmt(c.total)}</span>`;
+    const sign = c.type === "income" ? "+" : "-";
+    chip.innerHTML = `<span class="swatch" style="background:${c.color}"></span><span>${c.label}</span><span class="amt">${sign}${fmt(c.total)}</span>`;
     el.appendChild(chip);
   });
 }
@@ -312,6 +343,7 @@ function renderList() {
     const row = document.createElement("div");
     row.className = "entry-row";
     const dateLabel = new Date(e.date).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+    const isIncome = e.type === "income";
     row.innerHTML = `
       <span class="entry-dot" style="background:${meta.color}"></span>
       <div class="entry-info">
@@ -319,7 +351,7 @@ function renderList() {
         <div class="entry-meta">${meta.label} · ${dateLabel}</div>
       </div>
       <div class="leader"></div>
-      <div class="entry-amt">${fmt(e.amount)}</div>
+      <div class="entry-amt" style="color:${isIncome ? "#4FA88B" : "#E9E6DE"}">${isIncome ? "+" : "-"}${fmt(e.amount)}</div>
       <button class="entry-del" data-id="${e.id}" aria-label="Delete">✕</button>
     `;
     el.appendChild(row);
@@ -352,6 +384,7 @@ function addEntry() {
   entries.unshift({
     id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
     amount: amt,
+    type: selectedType,
     category: selectedCategory,
     note: noteInput.value.trim(),
     date: dateInput.value || todayISO()
@@ -384,7 +417,8 @@ function closeSheet() {
 function buildCategoryPicker() {
   const el = document.getElementById("catPicker");
   el.innerHTML = "";
-  CATEGORIES.forEach((c) => {
+  const list = selectedType === "income" ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
+  list.forEach((c) => {
     const btn = document.createElement("button");
     btn.className = "cat-btn" + (c.id === selectedCategory ? " selected" : "");
     btn.textContent = c.label;
@@ -395,6 +429,16 @@ function buildCategoryPicker() {
     });
     el.appendChild(btn);
   });
+}
+
+function setEntryType(type) {
+  selectedType = type;
+  const list = type === "income" ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
+  selectedCategory = list[0].id;
+  document.querySelectorAll(".type-tab").forEach((t) => t.classList.toggle("active", t.dataset.type === type));
+  document.getElementById("saveEntry").textContent = type === "income" ? "Add income" : "Add expense";
+  document.getElementById("saveEntry").style.background = type === "income" ? "#4FA88B" : "#D9A441";
+  buildCategoryPicker();
 }
 
 function setupTabs() {
@@ -411,6 +455,9 @@ function setupTabs() {
 window.addEventListener("DOMContentLoaded", () => {
   buildCategoryPicker();
   setupTabs();
+  document.querySelectorAll(".type-tab").forEach((t) => {
+    t.addEventListener("click", () => setEntryType(t.dataset.type));
+  });
   document.getElementById("addBtn").addEventListener("click", openSheet);
   document.getElementById("closeSheet").addEventListener("click", closeSheet);
   document.getElementById("sheetBackdrop").addEventListener("click", (e) => {

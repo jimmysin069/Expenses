@@ -16,6 +16,7 @@
   <div class="header">
     <div class="eyebrow">🧾 Ledger</div>
     <h1 class="font-display" id="todayTotal">0.00</h1>
+    <div class="today-sub font-mono" id="todaySub"></div>
     <div class="date" id="todayDate"></div>
     <button class="sync-status" id="syncStatus">
       <span class="dot"></span>
@@ -26,18 +27,30 @@
   <div class="grid-2">
     <div class="card">
       <div class="label">📅 This week</div>
-      <div class="value font-display" id="weekTotal">0.00</div>
-      <div class="delta font-mono" id="weekDelta"></div>
+      <div class="value font-display" id="weekNet">0.00</div>
+      <div class="subline font-mono">
+        <span class="income-text" id="weekIncome">+0.00</span>
+        <span class="expense-text" id="weekExpense">-0.00</span>
+      </div>
     </div>
     <div class="card">
       <div class="label">🗓️ This month</div>
-      <div class="value font-display" id="monthTotal">0.00</div>
-      <div class="delta font-mono" id="monthDelta"></div>
+      <div class="value font-display" id="monthNet">0.00</div>
+      <div class="subline font-mono">
+        <span class="income-text" id="monthIncome">+0.00</span>
+        <span class="expense-text" id="monthExpense">-0.00</span>
+      </div>
     </div>
   </div>
 
   <div class="card chart-card">
-    <div class="label" id="chartLabel">Last 7 days</div>
+    <div class="chart-head">
+      <div class="label" id="chartLabel">Last 7 days</div>
+      <div class="legend">
+        <span class="legend-item"><span class="dot" style="background:#4FA88B"></span>Income</span>
+        <span class="legend-item"><span class="dot" style="background:#C1533B"></span>Expense</span>
+      </div>
+    </div>
     <canvas id="chart"></canvas>
   </div>
 
@@ -60,6 +73,11 @@
     <div class="sheet-header">
       <h2 class="font-display">Log expense</h2>
       <button id="closeSheet" aria-label="Close">✕</button>
+    </div>
+
+    <div class="tabs type-toggle">
+      <button class="tab type-tab active" data-type="expense">Expense</button>
+      <button class="tab type-tab" data-type="income">Income</button>
     </div>
 
     <label class="field-label">Amount</label>

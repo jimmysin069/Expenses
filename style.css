@@ -34,6 +34,15 @@ body {
 }
 .header h1 { font-size: 30px; margin: 0; letter-spacing: -0.02em; }
 .header .date { color: var(--muted); font-size: 13px; margin-top: 4px; }
+.today-sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+.income-text { color: var(--green); }
+.expense-text { color: var(--red); margin-left: 8px; }
+.subline { font-size: 12px; margin-top: 6px; }
+.value.positive { color: var(--green); }
+.value.negative { color: var(--red); }
+
+.type-toggle { margin: 0 0 16px; }
 
 .sync-status {
   display: inline-flex; align-items: center; gap: 6px;
@@ -65,6 +74,10 @@ body {
 
 .chart-card { margin: 0 20px 20px; }
 .chart-card canvas { width: 100%; height: 140px; display: block; }
+.chart-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+.legend { display: flex; gap: 10px; }
+.legend-item { display: flex; align-items: center; gap: 4px; font-size: 10px; color: var(--muted); font-family: 'IBM Plex Mono', monospace; text-transform: uppercase; }
+.legend-item .dot { width: 6px; height: 6px; border-radius: 50%; }
 
 .chips { padding: 0 20px; margin-bottom: 20px; display: flex; flex-wrap: wrap; gap: 8px; }
 .chip {
