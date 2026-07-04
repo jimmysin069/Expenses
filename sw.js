@@ -1,4 +1,4 @@
-const CACHE = "ledger-cache-v1";
+const CACHE = "ledger-cache-v2";
 const ASSETS = [
   "./",
   "./index.html",
@@ -23,22 +23,24 @@ self.addEventListener("activate", (event) => {
   );
 });
 
-// Network-first for navigation, cache-first for everything else.
-// Drive API calls (googleapis.com) always go to network, never cached.
+// Network-first for everything, falling back to cache only when offline.
+// This means: online = you always get what's actually on GitHub Pages.
+// Offline = last successfully loaded version still works.
+// Drive/Google auth calls always go straight to network, never cached.
 self.addEventListener("fetch", (event) => {
   const url = event.request.url;
   if (url.includes("googleapis.com") || url.includes("accounts.google.com")) {
-    return; // let these pass straight through, uncached
-  }
-
-  if (event.request.mode === "navigate") {
-    event.respondWith(
-      fetch(event.request).catch(() => caches.match("./index.html"))
-    );
     return;
   }
 
   event.respondWith(
-    caches.match(event.request).then((cached) => cached || fetch(event.request))
+    fetch(event.request)
+      .then((response) => {
+        const copy = response.clone();
+        caches.open(CACHE).then((cache) => cache.put(event.request, copy));
+        return response;
+      })
+      .catch(() => caches.match(event.request).then((cached) => cached || caches.match("./index.html")))
   );
 });
+
